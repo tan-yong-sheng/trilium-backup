@@ -91,10 +91,9 @@ jobs:
 
           # Find the backup file
           BACKUP_FILE=$(ls ./trilium-docker-backups/*.tar.gz.gpg | head -1)
+          BACKUP_FILENAME=$(basename "$BACKUP_FILE")
           echo "Restoring from: $BACKUP_FILE"
-
-          # Copy backup file to backup container directory
-          cp "$BACKUP_FILE" ./trilium-docker-backups/
+          echo "Backup filename: $BACKUP_FILENAME"
 
           # Run restore using restore.py
           docker run --rm \
@@ -104,15 +103,7 @@ jobs:
             -e BACKUP_ENCRYPTION_KEY=test-encryption-key \
             -e LOG_LEVEL=DEBUG \
             trilium-backup:test \
-            python -c "
-import sys
-sys.path.insert(0, '/app')
-from restore import run_restore
-from pathlib import Path
-backup_path = Path('/backups') / '$BACKUP_FILE'.split('/')[-1]
-result = run_restore(backup_path, '/home/node/trilium-data', force=True)
-sys.exit(0 if result else 1)
-"
+            python -c "from restore import run_restore; from pathlib import Path; import sys; backup_path = Path('/backups') / '${BACKUP_FILENAME}'; result = run_restore(backup_path, '/home/node/trilium-data', force=True); sys.exit(0 if result else 1)"
           echo "✓ Restore completed"
 
       - name: Test 7 - Verify restored data
