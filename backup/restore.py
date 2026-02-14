@@ -213,13 +213,14 @@ def find_latest_cloud_backup():
 
     destinations = [d.strip() for d in BACKUP_RCLONE_DESTINATIONS.split(',') if d.strip()]
     latest_backup = None
+    latest_time = None
 
     for dest in destinations:
         cmd = [
             'rclone', 'lsf',
             dest,
             '--config', '/config/rclone/rclone.conf',
-            '--format', 'st',
+            '--format', 'stp',  # size, time, path
             '--include', 'trilium-backup-*'
         ]
 
@@ -231,15 +232,31 @@ def find_latest_cloud_backup():
                     if line.strip():
                         parts = line.split(';')
                         if len(parts) >= 3:
-                            mod_time = parts[1]
+                            size = int(parts[0])
+                            mod_time_str = parts[1]
                             filename = parts[2]
-                            if not latest_backup or mod_time > latest_backup['modified']:
+
+                            # Parse timestamp for proper comparison
+                            # rclone format: 2006-01-02T15:04:05 or 2006-01-02 15:04:05
+                            try:
+                                mod_time = datetime.strptime(mod_time_str, '%Y-%m-%dT%H:%M:%S')
+                            except ValueError:
+                                # Try alternative format with space
+                                try:
+                                    mod_time = datetime.strptime(mod_time_str, '%Y-%m-%d %H:%M:%S')
+                                except ValueError:
+                                    continue
+
+                            if latest_time is None or mod_time > latest_time:
+                                latest_time = mod_time
                                 latest_backup = {
                                     'filename': filename,
                                     'destination': dest,
-                                    'modified': mod_time
+                                    'modified': mod_time_str,
+                                    'size_mb': size / (1024 * 1024)
                                 }
-        except Exception:
+        except Exception as e:
+            logging.debug(f"Error listing {dest}: {e}")
             continue
 
     return latest_backup
