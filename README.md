@@ -82,7 +82,6 @@ docker compose start trilium
 |----------|-------------|
 | [.env.example](.env.example) | All environment variables explained |
 | [backup/rclone.conf.example](backup/rclone.conf.example) | Cloud storage configuration examples |
-| [docs/BACKUP_RESTORE_GUIDELINE.md](docs/BACKUP_RESTORE_GUIDELINE.md) | Detailed backup/restore guide |
 | [docs/DETAILED_SETUP.md](docs/DETAILED_SETUP.md) | Step-by-step setup tutorial |
 
 ## Available Images

@@ -229,6 +229,5 @@ docker compose exec trilium-backup sqlite3 /trilium-data/document.db "PRAGMA int
 
 ## Next Steps
 
-- See [BACKUP_RESTORE_GUIDELINE.md](BACKUP_RESTORE_GUIDELINE.md) for detailed restore procedures
 - See [.env.example](../.env.example) for all configuration options
 - See [backup/rclone.conf.example](../backup/rclone.conf.example) for more cloud provider examples
