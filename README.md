@@ -24,6 +24,7 @@ mkdir -p trilium-data trilium-docker-backups backup
 ### 2. Configure Environment
 
 Create `.env` file:
+(Refer to .env.example)
 
 ```bash
 cat > .env << 'EOF'
@@ -52,6 +53,7 @@ EOF
 ### 3. Configure Cloud Storage (rclone.conf)
 
 Create `backup/rclone.conf` for your cloud provider:
+(See backup/rclone.conf.example as reference)
 
 #### Cloudflare R2 (Recommended)
 
