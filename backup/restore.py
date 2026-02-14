@@ -184,11 +184,22 @@ def list_cloud_backups():
 
 
 def download_from_cloud(remote_path, local_filename=None):
-    """Download a backup from cloud storage."""
+    """Download a backup from cloud storage to /tmp for restore operations.
+
+    Downloads to /tmp instead of BACKUP_DIR to avoid polluting the backup storage
+    with temporary restore files. Always downloads fresh to ensure integrity.
+    """
     if not local_filename:
         local_filename = remote_path.split('/')[-1]
 
-    local_path = BACKUP_DIR / local_filename
+    # Use /tmp for temporary download - gets cleaned up automatically
+    tmp_dir = Path('/tmp')
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    local_path = tmp_dir / local_filename
+
+    # Remove existing file to ensure fresh download
+    if local_path.exists():
+        local_path.unlink()
 
     print_info(f"Downloading {remote_path}...")
     cmd = [
