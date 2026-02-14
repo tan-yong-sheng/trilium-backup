@@ -4,192 +4,261 @@ A Docker-based scheduled backup solution for Trilium Notes, featuring SQLite hot
 
 ## Features
 
-- **Zero-Downtime Backups** - Uses SQLite's `.backup` command for hot backups
+- **Zero-Downtime Backups** - Uses SQLite's `.backup` command for hot backups (no Trilium downtime)
 - **GPG AES256 Encryption** - Military-grade encryption for all backups
-- **Multi-Cloud Support** - Upload to R2, S3, B2, Google Drive via rclone
+- **Multi-Cloud Support** - Upload to multiple cloud providers simultaneously (R2, S3, B2, etc.)
+- **Cloud-First Restore** - Restore directly from cloud storage to any machine
 - **Configurable Scheduling** - Cron-based backup scheduling
 - **Retention Policy** - Automatic cleanup of old backups
 - **Notifications** - Email and webhook alerts on success/failure
 - **Integrity Verification** - SHA256 checksums and metadata
 
-## Quick Start
+## Quick Start (Using GHCR Image)
 
-### 1. Configure Environment
+### 1. Create Required Directories
 
 ```bash
-cp .env.example .env
-# Edit .env with your settings
+mkdir -p trilium-data trilium-docker-backups backup
 ```
 
-### 2. Configure Cloud Storage (Optional)
+### 2. Configure Environment
+
+Create `.env` file:
 
 ```bash
-cp backup/rclone.conf.example backup/rclone.conf
-# Edit backup/rclone.conf with your cloud credentials
+cat > .env << 'EOF'
+# Trilium Configuration
+TRILIUM_LOCAL_DATA_DIR=./trilium-data
+TRILIUM_REMOTE_DATA_DIR=/home/node/trilium-data
+
+# Backup Configuration
+BACKUP_SCHEDULE=0 2 * * *
+BACKUP_RETENTION_DAYS=30
+BACKUP_ENCRYPTION_KEY=your-secure-gpg-passphrase-here
+BACKUP_RCLONE_DESTINATIONS=r2:triliumbackup
+BACKUP_RUN_ON_START=false
+
+# SMTP for notifications (optional)
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_TO=
+EOF
 ```
 
-### 3. Start Backup Service
+> **Note:** Change `BACKUP_ENCRYPTION_KEY` to a secure passphrase. You'll need this to restore backups!
 
-#### Option A: Using Pre-built GHCR Image (Recommended)
+### 3. Configure Cloud Storage (rclone.conf)
 
-The docker-compose.yml uses the pre-built GitHub Container Registry (GHCR) image by default:
+Create `backup/rclone.conf` for your cloud provider:
+
+#### Cloudflare R2 (Recommended)
 
 ```bash
-# Pull and run the latest image
+cat > backup/rclone.conf << 'EOF'
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = your-access-key-id
+secret_access_key = your-secret-access-key
+endpoint = https://your-account-id.r2.cloudflarestorage.com
+acl = private
+EOF
+```
+
+#### AWS S3
+
+```bash
+cat > backup/rclone.conf << 'EOF'
+[s3]
+type = s3
+provider = AWS
+access_key_id = your-access-key-id
+secret_access_key = your-secret-access-key
+region = us-east-1
+acl = private
+EOF
+```
+
+#### Backblaze B2
+
+```bash
+cat > backup/rclone.conf << 'EOF'
+[b2]
+type = b2
+account = your-application-key-id
+key = your-application-key
+EOF
+```
+
+#### Multiple Cloud Destinations
+
+You can backup to multiple clouds simultaneously:
+
+```bash
+cat > backup/rclone.conf << 'EOF'
+[r2]
+type = s3
+provider = Cloudflare
+...
+
+[r2_backup]
+type = s3
+provider = Cloudflare
+...
+
+[s3]
+type = s3
+provider = AWS
+...
+EOF
+```
+
+Then set in `.env`:
+```bash
+BACKUP_RCLONE_DESTINATIONS=r2:triliumbackup,r2_backup:triliumbackup,s3:trilium-backups
+```
+
+### 4. Start Backup Service
+
+```bash
+# Start with backup enabled
 docker compose --profile backup up -d
 
-# Or set COMPOSE_PROFILES=backup in .env, then:
-docker compose up -d
+# Or set COMPOSE_PROFILES=backup in .env, then simply:
+# docker compose up -d
 ```
 
-Available images at `ghcr.io/your-username/trilium-backup`:
-- `latest` - Latest stable release
-- `v1.0.0` - Specific version tags
-- `main` - Latest development build
-
-Supported platforms: `linux/amd64`, `linux/arm64`
-
-#### Option B: Build Locally
+### 5. Verify It's Working
 
 ```bash
-# Build the backup image locally
-docker compose -f docker-compose.yml -f docker-compose.build.yml --profile backup up -d --build
-```
-
-### 4. Verify Backup
-
-```bash
-# Check backup logs
+# Check logs
 docker compose logs -f trilium-backup
 
-# List local backups
-ls -la ./trilium-docker-backups/
+# Test backup manually
+docker compose exec trilium-backup python -c "from backup import run_backup; run_backup()"
+
+# List cloud backups
+docker compose exec trilium-backup rclone ls r2:triliumbackup --config /config/rclone/rclone.conf
 ```
 
-## What Gets Backed Up
+## Restore from Backup
 
-The backup includes your entire Trilium data directory:
+### Restore Latest from Cloud (Recommended)
 
-| File | Purpose |
-|------|---------|
-| `document.db` | Main SQLite database (hot backup) |
-| `document.db-shm` | Shared memory file |
-| `document.db-wal` | Write-ahead log |
-| `config.ini` | Trilium configuration |
-| `session_secret.txt` | Session encryption key |
-| `log/` | Application logs |
-| `backup-metadata.json` | Backup integrity metadata |
+```bash
+# Stop Trilium first
+docker compose stop trilium
 
-## Configuration
+# Restore latest backup from any cloud
+docker compose exec trilium-backup python restore.py --restore-latest --force
+
+# Start Trilium
+docker compose start trilium
+```
+
+### Restore Specific Version from Cloud
+
+```bash
+# List available backups
+docker compose exec trilium-backup python restore.py --list
+
+# Restore specific backup (use --force to skip confirmation)
+docker compose stop trilium
+docker compose exec trilium-backup python restore.py --restore r2:triliumbackup/trilium-backup-20250214-120000.tar.gz.gpg --force
+docker compose start trilium
+```
+
+### Restore from Local Backup
+
+```bash
+docker compose stop trilium
+docker compose exec trilium-backup python restore.py --restore-latest --source local --force
+docker compose start trilium
+```
+
+## Configuration Reference
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TRILIUM_LOCAL_DATA_DIR` | `./trilium-data` | Host path to Trilium data |
-| `TRILIUM_REMOTE_DATA_DIR` | `/home/node/trilium-data` | Container path to Trilium data |
 | `BACKUP_SCHEDULE` | `0 2 * * *` | Cron schedule (default: daily 2 AM) |
-| `BACKUP_RETENTION_DAYS` | `30` | Days to keep backups |
-| `BACKUP_ENCRYPTION_KEY` | (empty) | GPG passphrase (empty = no encryption) |
+| `BACKUP_RETENTION_DAYS` | `30` | Days to keep backups locally and in cloud |
+| `BACKUP_ENCRYPTION_KEY` | (empty) | GPG passphrase (required for encryption) |
 | `BACKUP_RCLONE_DESTINATIONS` | (empty) | Comma-separated rclone destinations |
-| `BACKUP_RUN_ON_START` | `false` | Run backup immediately on container start |
-| `BACKUP_DELETE_LOCAL_AFTER_UPLOAD` | `false` | Delete local copy after cloud upload |
+| `BACKUP_RUN_ON_START` | `false` | Run backup immediately when container starts |
+| `BACKUP_DELETE_LOCAL_AFTER_UPLOAD` | `false` | Delete local backup after cloud upload |
 | `BACKUP_WEBHOOK_URL` | (empty) | Webhook URL for notifications |
 | `SMTP_HOST` | (empty) | SMTP server for email notifications |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_USER` | (empty) | SMTP username |
-| `SMTP_PASSWORD` | (empty) | SMTP password |
-| `SMTP_TO` | (empty) | Email recipient for notifications |
 
-### Schedule Examples
+### Cron Schedule Examples
 
 ```bash
-# Daily at 2:00 AM
+# Every day at 2 AM
 BACKUP_SCHEDULE=0 2 * * *
 
 # Every 6 hours
 BACKUP_SCHEDULE=0 */6 * * *
 
-# Weekly on Sunday at 3:00 AM
+# Weekly on Sunday at 3 AM
 BACKUP_SCHEDULE=0 3 * * 0
 
-# Twice daily (2 AM and 2 PM)
-BACKUP_SCHEDULE=0 2,14 * * *
+# Every 12 hours
+BACKUP_SCHEDULE=0 */12 * * *
 ```
 
-## Cloud Storage Configuration
+## Available GHCR Images
 
-1. Copy the example rclone config:
+| Image | Description |
+|-------|-------------|
+| `ghcr.io/tan-yong-sheng/trilium-backup:latest` | Latest stable release |
+| `ghcr.io/tan-yong-sheng/trilium-backup:main` | Latest development build |
+| `ghcr.io/tan-yong-sheng/trilium-backup:v1.0.0` | Specific version |
+
+**Supported platforms:** `linux/amd64`, `linux/arm64`
+
+## Disaster Recovery Workflow
+
+**Scenario:** Server crashed, need to restore on new machine
+
 ```bash
-cp backup/rclone.conf.example backup/rclone.conf
+# 1. On new server, clone this repo
+git clone https://github.com/tan-yong-sheng/trilium-backup.git
+cd trilium-backup
+
+# 2. Create .env with your encryption key
+cat > .env << 'EOF'
+BACKUP_ENCRYPTION_KEY=your-secure-gpg-passphrase-here
+BACKUP_RCLONE_DESTINATIONS=r2:triliumbackup
+EOF
+
+# 3. Set up rclone.conf with your cloud credentials
+# (copy from secure location or recreate)
+
+# 4. Start backup container
+docker compose --profile backup up -d
+
+# 5. Restore latest backup from cloud
+docker compose exec trilium-backup python restore.py --restore-latest --force
+
+# 6. Start Trilium (assuming you have Trilium configured)
+docker compose start trilium
 ```
 
-2. Edit `backup/rclone.conf` with your credentials
-
-3. Set destinations in `.env`:
-```bash
-BACKUP_RCLONE_DESTINATIONS=r2:my-bucket/trilium-backups,s3:backup-bucket/trilium
-```
-
-### Supported Providers
-
-- **Cloudflare R2** - `r2:bucket/path`
-- **AWS S3** - `s3:bucket/path`
-- **Backblaze B2** - `b2:bucket/path`
-- **Google Drive** - `gdrive:folder/path`
-
-## Backup Process
-
-1. **Pre-flight checks** - Verify data directory exists
-2. **SQLite hot backup** - Creates consistent snapshot using `.backup`
-3. **Archive creation** - Tars database and config files
-4. **Encryption** (optional) - GPG AES256 encryption
-5. **Cloud upload** (optional) - rclone to configured destinations
-6. **Cleanup** - Remove old backups per retention policy
-7. **Notifications** - Email/webhook on completion
-
-## Restore from Backup
-
-The backup container includes a restore helper script for easier restoration. **Cloud is the default source** for all operations.
+## Testing Your Setup
 
 ```bash
-# List cloud backups (default)
-docker compose exec trilium-backup python restore.py --list
+# Test 1: Run backup immediately
+BACKUP_RUN_ON_START=true docker compose --profile backup up trilium-backup
 
-# List local backups
-docker compose exec trilium-backup python restore.py --list --source local
+# Test 2: Verify cloud upload
+docker compose exec trilium-backup rclone ls r2:triliumbackup --config /config/rclone/rclone.conf
 
-# Restore latest from cloud (default)
-docker compose exec trilium-backup python restore.py --restore-latest
-
-# Restore latest from local
-docker compose exec trilium-backup python restore.py --restore-latest --source local
-
-# Restore specific file from cloud (auto-detected by colon)
-docker compose exec trilium-backup python restore.py --restore r2:my-bucket/trilium-backup-20250214.tar.gz.gpg
-
-# Restore specific local file
-docker compose exec trilium-backup python restore.py --restore trilium-backup-20250214.tar.gz.gpg --source local
-```
-
-The restore script includes:
-- **Cloud-first architecture** - Cloud is the default backup source
-- **Auto-detection** - Automatically detects cloud paths (contains `:` like `r2:bucket/file`)
-- **Safety checks** - Warns if Trilium is running, creates safety backup
-- **Integrity verification** - Validates checksums before restore
-- **Automatic decryption** - Handles GPG encrypted backups
-- **Confirmation prompts** - Prevents accidental overwrites (use `--force` to skip)
-
-## Testing Backups
-
-Run a one-off backup to test configuration:
-
-```bash
-# Set in .env: BACKUP_RUN_ON_START=true
-docker compose --profile backup up trilium-backup
-
-# Or run backup manually
-docker compose exec trilium-backup python backup.py --run-once
+# Test 3: Test restore (creates safety backup automatically)
+docker compose stop trilium
+docker compose exec trilium-backup python restore.py --restore-latest --force
 ```
 
 ## Troubleshooting
@@ -199,21 +268,10 @@ docker compose exec trilium-backup python backup.py --run-once
 docker compose logs trilium-backup
 ```
 
-### Verify SQLite Backup
-```bash
-# Enter backup container
-docker compose exec trilium-backup sh
-
-# Verify sqlite3 is available
-sqlite3 --version
-
-# Check database integrity
-sqlite3 /trilium-data/document.db "PRAGMA integrity_check;"
-```
-
 ### Test rclone Configuration
 ```bash
 docker compose exec trilium-backup rclone listremotes --config /config/rclone/rclone.conf
+docker compose exec trilium-backup rclone ls r2:triliumbackup --config /config/rclone/rclone.conf
 ```
 
 ### Manual Backup Trigger
@@ -221,80 +279,58 @@ docker compose exec trilium-backup rclone listremotes --config /config/rclone/rc
 docker compose exec trilium-backup python -c "from backup import run_backup; run_backup()"
 ```
 
-## Security
-
-- **Encryption**: AES256 symmetric encryption via GPG
-- **Permissions**: Backup files created with 0600 (owner read/write only)
-- **Read-only mounts**: Trilium data mounted read-only in backup container
-- **Passphrase**: Never stored in backup files, only in environment variables
-
-## Architecture
-
+### Database Integrity Check
+```bash
+docker compose exec trilium-backup sqlite3 /trilium-data/document.db "PRAGMA integrity_check;"
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   Trilium       │────▶│  trilium-backup  │────▶│  Cloud Storage  │
-│   (document.db) │     │  (Python + GPG)  │     │  (S3/R2/B2/etc) │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-        │                        │
-        │                        ▼
-        │               ┌──────────────────┐
-        └──────────────▶│  Local Backups   │
-                        │  (encrypted)     │
-                        └──────────────────┘
+
+## Security Notes
+
+- **Encryption Key:** Store `BACKUP_ENCRYPTION_KEY` securely (password manager). You'll need it to restore!
+- **rclone.conf:** Contains cloud credentials - keep it secure and don't commit to git
+- **Permissions:** Backup files are created with 0600 (owner read/write only)
+- **Passphrase:** Never stored in backup files, only verified during restore
+
+## Multi-Cloud Backup Example
+
+Backup to multiple providers for redundancy:
+
+```bash
+# .env file
+BACKUP_RCLONE_DESTINATIONS=r2:triliumbackup,s3:trilium-backups,b2:trilium-backup-bucket
+BACKUP_ENCRYPTION_KEY=your-secure-key
 ```
+
+```bash
+# backup/rclone.conf
+[r2]
+type = s3
+provider = Cloudflare
+...
+
+[s3]
+type = s3
+provider = AWS
+...
+
+[b2]
+type = b2
+...
+```
+
+This backs up simultaneously to R2, S3, and B2. If one provider fails, you have two others!
 
 ## File Structure
 
 ```
 .
 ├── docker-compose.yml          # Main compose file (uses GHCR image)
-├── docker-compose.build.yml    # Override for local builds
-├── .env                        # Environment configuration
-├── .env.example                # Example environment file
-├── README.md                   # This file
-├── .github/
-│   └── workflows/
-│       ├── docker-build.yml    # GitHub Actions for GHCR builds
-│       └── e2e-test.yml        # End-to-end tests
-├── docs/
-│   └── BACKUP_RESTORE_GUIDELINE.md # Detailed backup/restore guide
-├── trilium-data/               # Trilium data directory
-├── trilium-docker-backups/     # Docker backup storage (encrypted)
-└── backup/
-    ├── Dockerfile              # Backup container image
-    ├── backup.py               # Main backup script
-    ├── restore.py              # Restore helper script (cloud-first)
-    ├── requirements.txt        # Python dependencies
-    └── rclone.conf.example     # Cloud storage config template
+├── .env                        # Your configuration (secrets here)
+├── backup/
+│   └── rclone.conf             # Cloud credentials (keep secure!)
+├── trilium-data/               # Trilium data (mounted read-only)
+└── trilium-docker-backups/     # Local backups (if not using cloud)
 ```
-
-## GitHub Actions
-
-The repository includes a GitHub Actions workflow to automatically build and push multi-arch Docker images to GitHub Container Registry (GHCR).
-
-### Features
-
-- **Multi-architecture support**: Builds for both `linux/amd64` and `linux/arm64`
-- **Automatic tagging**: Creates tags for branches, PRs, and semantic versions
-- **Public packages**: Images are automatically made public
-- **Caching**: Uses GitHub Actions cache for faster builds
-
-### Manual Trigger
-
-You can manually trigger a build from the GitHub Actions tab:
-
-1. Go to **Actions** → **Build and Push Docker Image**
-2. Click **Run workflow**
-3. Optionally specify a custom tag
-
-### Image Tags
-
-| Tag | Description |
-|-----|-------------|
-| `latest` | Latest release |
-| `main` | Latest commit on main branch |
-| `v1.0.0` | Semantic version tags |
-| `sha-abc123` | Specific commit SHA |
 
 ## License
 
