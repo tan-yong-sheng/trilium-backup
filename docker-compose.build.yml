@@ -1,0 +1,9 @@
+# Docker Compose override for building backup image locally
+# Usage: docker compose -f docker-compose.yml -f docker-compose.build.yml --profile backup up -d --build
+
+services:
+  trilium-backup:
+    image: trilium-backup:local
+    build:
+      context: .
+      dockerfile: backup/Dockerfile

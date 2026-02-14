@@ -1,0 +1,45 @@
+# rclone configuration for Trilium backup destinations
+# Copy this file to rclone.conf and configure your storage providers.
+# Documentation: https://rclone.org/docs/
+#
+# Usage: Set BACKUP_RCLONE_DESTINATIONS in .env to a comma-separated list
+# of remote:path destinations, e.g.: "r2:my-bucket/trilium-backups,s3:backup-bucket/trilium"
+
+# --- Cloudflare R2 (S3-compatible) ---
+# https://rclone.org/s3/#cloudflare-r2
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = YOUR_R2_ACCESS_KEY_ID
+secret_access_key = YOUR_R2_SECRET_ACCESS_KEY
+endpoint = https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+acl = private
+
+# --- AWS S3 ---
+# https://rclone.org/s3/
+[s3]
+type = s3
+provider = AWS
+access_key_id = YOUR_AWS_ACCESS_KEY_ID
+secret_access_key = YOUR_AWS_SECRET_ACCESS_KEY
+region = us-east-1
+acl = private
+
+# --- Backblaze B2 ---
+# https://rclone.org/b2/
+[b2]
+type = b2
+account = YOUR_B2_APPLICATION_KEY_ID
+key = YOUR_B2_APPLICATION_KEY
+
+# --- Google Drive ---
+# https://rclone.org/drive/
+# Note: Google Drive requires OAuth setup. Run `rclone config` interactively
+# on your local machine first, then copy the token here.
+[gdrive]
+type = drive
+client_id = YOUR_CLIENT_ID
+client_secret = YOUR_CLIENT_SECRET
+scope = drive.file
+token = {"access_token":"...","token_type":"Bearer","refresh_token":"...","expiry":"..."}
+root_folder_id = YOUR_FOLDER_ID

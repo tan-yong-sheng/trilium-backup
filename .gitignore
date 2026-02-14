@@ -1,0 +1,7 @@
+.env
+__pycache__/
+
+rclone.conf
+trilium-data/
+trilium-docker-backups/
+

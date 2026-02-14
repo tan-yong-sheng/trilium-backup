@@ -1,0 +1,63 @@
+services:
+  trilium:
+    image: triliumnext/trilium:latest
+    container_name: trilium
+    restart: always
+    environment:
+      - TRILIUM_REMOTE_DATA_DIR=${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}
+    expose:
+      - "8080"
+    volumes:
+      # Mount Trilium data
+      - ${TRILIUM_LOCAL_DATA_DIR:-./trilium-data}:${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.trilium.entrypoints=websecure
+      - traefik.http.routers.trilium.rule=Host(`trilium.ts.${DOMAINNAME}`)
+      - traefik.http.services.trilium.loadbalancer.server.port=8080
+      - traefik.http.routers.trilium.tls=true
+      - traefik.http.routers.trilium.tls.certresolver=letsencrypt
+      #- "traefik.http.routers.trilium.middlewares=secureHeaders@file,nofloc@file"
+      #- "traefik.http.middlewares.secureHeaders.headers.sslredirect=true"
+      #- "traefik.http.middlewares.secureHeaders.headers.stsseconds=31536000"
+    networks:
+      - proxy
+
+  trilium-backup:
+    profiles: [backup]
+    image: ghcr.io/tan-yong-sheng/trilium-backup:latest
+    container_name: trilium-backup
+    restart: unless-stopped
+    environment:
+      # Trilium data path (mounted read-only)
+      - TRILIUM_DATA_DIR=${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}
+      # Backup configuration
+      - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY:-}
+      - BACKUP_RCLONE_DESTINATIONS=${BACKUP_RCLONE_DESTINATIONS:-}
+      - BACKUP_RUN_ON_START=${BACKUP_RUN_ON_START:-false}
+      - BACKUP_DELETE_LOCAL_AFTER_UPLOAD=${BACKUP_DELETE_LOCAL_AFTER_UPLOAD:-false}
+      - BACKUP_WEBHOOK_URL=${BACKUP_WEBHOOK_URL:-}
+      # SMTP for notifications
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_TO=${SMTP_TO:-}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount Trilium data read-only for backup
+      - ${TRILIUM_LOCAL_DATA_DIR:-./trilium-data}:${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}:ro
+      # Backup output directory (separate from Trilium native backups)
+      - ./trilium-docker-backups:/backups
+      # rclone configuration (optional, for cloud upload)
+      - ./backup/rclone.conf:/config/rclone/rclone.conf:ro
+    networks:
+      - proxy
+
+networks:
+ proxy:
+   external: true
