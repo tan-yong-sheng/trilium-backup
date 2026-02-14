@@ -3,6 +3,9 @@ name: E2E Tests
 on:
   push:
     branches: [main, master]
+    paths:
+      - 'backup/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [main, master]
   workflow_dispatch:
