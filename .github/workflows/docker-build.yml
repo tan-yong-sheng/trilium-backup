@@ -23,6 +23,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
 
     steps:
       - name: Checkout repository
@@ -56,6 +57,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -71,12 +73,16 @@ jobs:
 
       - name: Make package public
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         run: |
+          # Wait a moment for package to be available
+          sleep 5
+          # Try to make package public (may fail if already public or not ready)
           gh api \
             --method PATCH \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "/user/packages/container/trilium-backup/visibility" \
-            -f visibility='public'
+            -f visibility='public' || echo "Note: Package visibility update skipped"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
