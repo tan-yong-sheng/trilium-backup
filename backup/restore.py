@@ -390,7 +390,7 @@ def run_restore(backup_path, trilium_data_dir=None, force=False):
 
     try:
         with tarfile.open(backup_path, 'r:gz') as tar:
-            tar.extractall(path=work_dir)
+            tar.extractall(path=work_dir, filter='data')
 
         # Restore files
         files_to_restore = [

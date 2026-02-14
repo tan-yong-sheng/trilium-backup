@@ -50,7 +50,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       # Mount Trilium data read-only for backup
-      - ${TRILIUM_LOCAL_DATA_DIR:-./trilium-data}:${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}:ro
+      - ${TRILIUM_LOCAL_DATA_DIR:-./trilium-data}:${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}:rw
       # Backup output directory (separate from Trilium native backups)
       - ./trilium-docker-backups:/backups
       # rclone configuration (optional, for cloud upload)

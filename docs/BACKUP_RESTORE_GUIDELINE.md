@@ -300,19 +300,22 @@ The `restore.py` script provides an interactive way to restore backups with **cl
 
 ```bash
 # List cloud backups (default)
-docker compose exec trilium-backup python restore.py --list
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --list
 
 # List local backups
-docker compose exec trilium-backup python restore.py --list --source local
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --list --source local
 
 # Restore latest from cloud
-docker compose exec trilium-backup python restore.py --restore-latest
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore-latest
+
+# Restore latest from local
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore-latest --source local
 
 # Restore from cloud with specific file
-docker compose exec trilium-backup python restore.py --restore r2:bucket/trilium-backup-20250214.tar.gz.gpg
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore r2:bucket/trilium-backup-20250214.tar.gz.gpg
 
 # Restore from local file
-docker compose exec trilium-backup python restore.py --restore trilium-backup-20250214.tar.gz.gpg --source local
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore trilium-backup-20250214.tar.gz.gpg --source local
 ```
 
 ### Auto-Detection Logic
