@@ -160,19 +160,17 @@ docker compose exec trilium-backup python restore.py --list
 docker compose exec trilium-backup python restore.py --list --source local
 
 # Restore latest from cloud (default)
-docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore-latest
+docker compose exec trilium-backup python restore.py --restore-latest
 
 # Restore latest from local
-docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore-latest --source local
+docker compose exec trilium-backup python restore.py --restore-latest --source local
 
 # Restore specific file from cloud (auto-detected by colon)
-docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore r2:my-bucket/trilium-backup-20250214.tar.gz.gpg
+docker compose exec trilium-backup python restore.py --restore r2:my-bucket/trilium-backup-20250214.tar.gz.gpg
 
 # Restore specific local file
-docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py --restore trilium-backup-20250214.tar.gz.gpg --source local
+docker compose exec trilium-backup python restore.py --restore trilium-backup-20250214.tar.gz.gpg --source local
 ```
-
-**Note:** Use `docker-compose.restore.yml` for restore operations - it mounts the Trilium data directory with write access (required for restoring files).
 
 The restore script includes:
 - **Cloud-first architecture** - Cloud is the default backup source
@@ -251,13 +249,13 @@ docker compose exec trilium-backup python -c "from backup import run_backup; run
 .
 ├── docker-compose.yml          # Main compose file (uses GHCR image)
 ├── docker-compose.build.yml    # Override for local builds
-├── docker-compose.restore.yml  # Override for restore operations (write access)
 ├── .env                        # Environment configuration
 ├── .env.example                # Example environment file
 ├── README.md                   # This file
 ├── .github/
 │   └── workflows/
-│       └── docker-build.yml    # GitHub Actions for GHCR builds
+│       ├── docker-build.yml    # GitHub Actions for GHCR builds
+│       └── e2e-test.yml        # End-to-end tests
 ├── docs/
 │   └── BACKUP_RESTORE_GUIDELINE.md # Detailed backup/restore guide
 ├── trilium-data/               # Trilium data directory

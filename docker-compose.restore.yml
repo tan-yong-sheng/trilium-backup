@@ -1,8 +1,0 @@
-# Docker Compose override for restore operations
-# Usage: docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile backup run --rm trilium-backup python restore.py [args]
-
-services:
-  trilium-backup:
-    volumes:
-      # Mount Trilium data with read-write access for restore
-      - ${TRILIUM_LOCAL_DATA_DIR:-./trilium-data}:${TRILIUM_REMOTE_DATA_DIR:-/home/node/trilium-data}:rw
